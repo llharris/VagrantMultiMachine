@@ -17,28 +17,21 @@ $master_ram = 4096
 
 # Linux Nodes
 #############
-# If deploying both Windows and Linux VMs, linode_count must not exceed 89
-# otherwise you have duplicate IPs assigned to overlapping VMs
-$linode_count = 1 
+$linode_count = 1 # Don't exceed 89 linodes if deploying both Linux & Windows
 $linode_cpu = 1
 $linode_ram = 1024
 $linode_box_image = "centos/7"
 
 # Windows Nodes
 ###############
-# winode_count must not exceed 154 or you'll get nonsensical IP addresses
-$winode_count = 1
+$winode_count = 1 # winode_count must not exceed 154 or you'll get nonsensical IP addresses
 $winode_cpu = 1
 $winode_ram = 2048
-#$winode_box_image = "opentable/win-2012r2-standard-amd64-nocm"
 $winode_box_image = "derekgroh/windows-2012r2-amd64-sysprep"
 $language = "en-GB" # Use to set Windows language, default is en-US. Must be valid input to the Set-WinUserLanguageList PowerShell cmdlet.
 
 # Windows AD Control
-###
-### Removing AD stuff because Windows is a massive bag of spanners
-###
-
+####################
 $enable_ad = true
 $dc_cpu = 2
 $dc_ram = 4096
@@ -46,6 +39,13 @@ $domain_name = "testlab.local"
 $domain_netbios_name = "testlab"
 $safe_mode_admin_password = "Pa55w0rd!"
 $win_clients_join_domain = true
+
+# Environment Control
+#####################
+# Uncomment environment type as required. Only one at a time of course ;)
+$env_type = "ansible" 
+#$env_type = "chef"
+#$env_type = "salt"
 
 #################################################
 ########## NO EDITS BELOW THIS LINE #############
@@ -60,6 +60,13 @@ localectl set-keymap uk
 sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/g' /etc/ssh/sshd_config
 systemctl restart sshd
 yum install screen mlocate zip unzip epel-release bind-utils net-tools git policycoreutils-python libsemanage-python tcpdump wget -y
+curl https://raw.githubusercontent.com/hashicorp/vagrant/master/keys/vagrant > /home/vagrant/.ssh/id_rsa
+curl https://raw.githubusercontent.com/hashicorp/vagrant/master/keys/vagrant.pub > /home/vagrant/.ssh/id_rsa.pub
+cat /home/vagrant/.ssh/id_rsa.pub >> /home/vagrant/.ssh/authorized_keys
+chown -R vagrant:vagrant /home/vagrant/.ssh
+chmod 0600 /home/vagrant/.ssh/id_rsa
+systemctl enable chronyd
+systemctl restart chronyd
 SCRIPT
 
 $linux_dnsmasq = <<SCRIPT
@@ -105,13 +112,46 @@ echo "PEERDNS=\"no\"" >> /etc/sysconfig/network-scripts/ifcfg-eth0
 echo "DNS1=\"$dns_server_ip\"" >> /etc/sysconfig/network-scripts/ifcfg-eth0
 echo "DOMAIN=\"#{$domain_name}\"" >> /etc/sysconfig/network-scripts/ifcfg-eth0
 systemctl restart NetworkManager
-systemctl restart network
+SCRIPT
+
+$master_install_cm = <<SCRIPT
+echo "Installing Master Server ConfigMgmt Tools: #{$env_type}..."
+if [[ "#{$env_type}" == "ansible" ]]; then
+    yum install ansible-2.4.1.0-1.el7.noarch ansible-doc-2.4.1.0-1.el7.noarch -y
+    useradd -G vagrant -s /bin/bash -d /home/ansible -m ansible
+    echo "ansible" | passwd --stdin ansible
+    mkdir /home/ansible/.ssh
+    ssh-keygen -b 2048 -t rsa -f /home/ansible/.ssh/id_rsa -q -N "" -C ansible
+    cp /home/ansible/.ssh/id_rsa.pub /home/ansible/.ssh/authorized_keys
+    chown ansible:ansible -R /home/ansible/.ssh
+    chmod 0700 /home/ansible/.ssh
+    chmod 0600 /home/ansible/.ssh/*
+fi
+if [[ "#{$env_type}" == "chef" ]]; then
+    firewalld_status_rc=$(systemctl status firewalld >/dev/null 2>&1;echo $?)
+    if [[ "$firewalld_status_rc" -eq 0 ]]; then
+        firewall-cmd --zone=public --add-service=http --permanent
+        firewall-cmd --zone=public --add-service=https --permanent
+        firewall-cmd --reload
+    fi
+    wget -O /tmp/chef-server-core-12.17.5-1.el7.x86_64.rpm https://packages.chef.io/files/stable/chef-server/12.17.5/el/7/chef-server-core-12.17.5-1.el7.x86_64.rpm
+    yum localinstall /tmp/chef-server-core-12.17.5-1.el7.x86_64.rpm -y
+    chef-server-ctl reconfigure
+    chef-server-ctl user-create chef Chef User chef@testlab.local 'chef123' --filename /root/chef.pem
+    chef-server-ctl org-create testlab testlab --association_user chef --filename /root/chef.pem
+fi
+if [[ "#{$env_type}" == "salt" ]]; then
+    yum install https://repo.saltstack.com/yum/redhat/salt-repo-latest-2.el7.noarch.rpm -y
+    yum clean expire-cache
+    yum install salt-master salt-minion salt-ssh salt-api -y
+    for i in salt-master salt-minion salt-api; do
+        systemctl enable $i
+        systemctl start $i
+    done
 SCRIPT
 
 # TO-DO LIST
 #
-# Script network configuration for Windows & Linux (e.g. DNS server, domain search)
-# Script basic OS configuration for Linux/Windows
 # Script Ansible server install for master and client ssh key/winrm configuration
 # Script saltstack server / minion install
 # Script chef server / client install
@@ -144,7 +184,6 @@ Vagrant.configure("2") do |config|
                 vb.memory = $dc_ram
                 vb.cpus = $dc_cpu
                 vb.linked_clone = $linked_clone
-            #dc.vm.provision :windows_reboot
             end
         end
     end
@@ -166,6 +205,10 @@ Vagrant.configure("2") do |config|
             #{$linux_dnsmasq} 
             SHELL
         end
+        master.vm.provision "shell", inline: <<-SHELL
+        #{$linux_config_dnsclient}
+        #{$master_install_cm}
+        SHELL
     end
 
     (1..$linode_count).each do |i|

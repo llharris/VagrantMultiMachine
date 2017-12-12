@@ -48,6 +48,9 @@ if ( $winode_count -gt 0 ) {
         Add-DnsServerResourceRecordA -Name "win$w" -ZoneName $domainName -IPv4Address "$network.$last_octet"
         }
     }   
+
+Write-Host "Rearming evaluation Licence"
+slmgr.vbs -rearm
     
 Write-Host "Rebooting in 30 seconds..."
 shutdown -t 30 -r -f
