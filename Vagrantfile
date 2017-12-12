@@ -19,7 +19,7 @@ $master_ram = 4096
 #############
 # If deploying both Windows and Linux VMs, linode_count must not exceed 89
 # otherwise you have duplicate IPs assigned to overlapping VMs
-$linode_count = 2 
+$linode_count = 1 
 $linode_cpu = 1
 $linode_ram = 1024
 $linode_box_image = "centos/7"
@@ -27,24 +27,25 @@ $linode_box_image = "centos/7"
 # Windows Nodes
 ###############
 # winode_count must not exceed 154 or you'll get nonsensical IP addresses
-$winode_count = 2
+$winode_count = 1
 $winode_cpu = 1
 $winode_ram = 2048
-$winode_box_image = "opentable/win-2012r2-standard-amd64-nocm"
+#$winode_box_image = "opentable/win-2012r2-standard-amd64-nocm"
+$winode_box_image = "derekgroh/windows-2012r2-amd64-sysprep"
+$language = "en-GB" # Use to set Windows language, default is en-US. Must be valid input to the Set-WinUserLanguageList PowerShell cmdlet.
 
 # Windows AD Control
 ###
 ### Removing AD stuff because Windows is a massive bag of spanners
 ###
 
-#$enable_ad = true
-#$dc_cpu = 2
-#$dc_ram = 4096
-#$domain_name = "mytest.local"
-#$domain_netbios_name = "mytest"
-#$domain_admin_password = "Pa55w0rd!"
-#$safe_mode_admin_password = "Pa55w0rd!"
-#$win_clients_join_domain = true
+$enable_ad = true
+$dc_cpu = 2
+$dc_ram = 4096
+$domain_name = "testlab.local"
+$domain_netbios_name = "testlab"
+$safe_mode_admin_password = "Pa55w0rd!"
+$win_clients_join_domain = true
 
 #################################################
 ########## NO EDITS BELOW THIS LINE #############
@@ -115,29 +116,29 @@ Vagrant.configure("2") do |config|
     config.winrm.basic_auth_only = true
     config.vm.synced_folder '.', '/vagrant', disabled: true
 
-    #if $enable_ad == true
-    #    config.vm.define "dc" do |dc|
-    #        dc.vm.box = $winode_box_image
-    #        dc.vm.hostname = "windc"
-    #        dc.vm.communicator = "winrm"
-    #        dc.vm.provision :shell do |adds|
-    #            adds.path = "scripts/configure_dc.ps1"
-    #            adds.args = "#{$domain_name} #{$domain_netbios_name} #{$safe_mode_admin_password} #{$network} #{$linode_count} #{$winode_count} #{$domain_admin_password}"
-    #            end
-    #        dc.vm.network :private_network, ip: "#{$network}.9"
-    #        dc.vm.network :forwarded_port, 
-    #            host: 9389,
-    #            guest: 3389,
-    #            id: "rdp",
-    #            auto_correct: true            
-    #        dc.vm.provider "virtualbox" do |vb|
-    #            vb.memory = $dc_ram
-    #            vb.cpus = $dc_cpu
-    #            vb.linked_clone = $linked_clone
-    #        dc.vm.provision :windows_reboot
-    #        end
-    #    end
-    #end
+    if $enable_ad == true
+        config.vm.define "dc" do |dc|
+            dc.vm.box = $winode_box_image
+            dc.vm.hostname = "windc"
+            dc.vm.communicator = "winrm"
+            dc.vm.provision :shell do |adds|
+                adds.path = "scripts/configure_dc.ps1"
+                adds.args = "#{$domain_name} #{$domain_netbios_name} #{$safe_mode_admin_password} #{$network} #{$linode_count} #{$winode_count} #{$language}"
+                end
+            dc.vm.network :private_network, ip: "#{$network}.9"
+            dc.vm.network :forwarded_port, 
+                host: 9389,
+                guest: 3389,
+                id: "rdp",
+                auto_correct: true            
+            dc.vm.provider "virtualbox" do |vb|
+                vb.memory = $dc_ram
+                vb.cpus = $dc_cpu
+                vb.linked_clone = $linked_clone
+            dc.vm.provision :windows_reboot
+            end
+        end
+    end
 
     config.vm.define "master" do |master|
         master.vm.box = "centos/7"
@@ -151,10 +152,11 @@ Vagrant.configure("2") do |config|
         master.vm.provision "shell", inline: <<-SHELL
         #{$linux_base_config}
         SHELL
-        #if $enabled_ad == false # We only install and configure DNSmasq if AD isn't being used. Sacking off AD shite.
-        master.vm.provision "shell", inline: <<-SHELL
-        #{$linux_dnsmasq}
-        SHELL
+        if $enabled_ad == false # We only install and configure DNSmasq if AD isn't being used. Sacking off AD shite.
+            master.vm.provision "shell", inline: <<-SHELL
+            #{$linux_dnsmasq} 
+            SHELL
+        end
     end
 
     (1..$linode_count).each do |i|
@@ -182,9 +184,13 @@ Vagrant.configure("2") do |config|
                 vb.cpus = $winode_cpu
                 vb.linked_clone = $linked_clone
             end
-            #winode.vm.provision :windows_reboot
-            #echo "Configuring Windows Node #{x}"
-            # SCRIPTS GO HERE 
+            if $win_clients_join_domain == true
+                winode.vm.provision :shell do |joinad|
+                    joinad.path = "scripts/join_domain.ps1"
+                    joinad.args = "#{$domain_name} #{$domain_netbios_name} #{$network} #{$language}"
+                end
+                winode.vm.provision :windows_reboot    
+            end 
         end
     end
 end

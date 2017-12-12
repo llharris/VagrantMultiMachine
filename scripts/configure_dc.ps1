@@ -5,11 +5,13 @@ $SMAPasswordSecure = $SMAPasswordPlain | ConvertTo-SecureString -AsPlainText -Fo
 $network = $args[3]
 $linode_count = $args[4]
 $winode_count = $args[5]
-$DomainAdminPasswordPlain = $args[6]
-$DomainAdminPasswordSecure = $DomainAdminPasswordPlain | ConvertTo-SecureString -AsPlainText -Force
- 
-Set-WinUserLanguageList -LanguageList en-GB -Force
+$language = $args[6]
+
+Write-Host "Setting language $language"
+Set-WinUserLanguageList -LanguageList $language -Force
+Write-Host "Installing Windows Feature AD-Domain-Services"
 Install-WindowsFeature AD-Domain-Services
+Write-Host "Installing Windows Feature RSAT-AD-Tools"
 Install-WindowsFeature RSAT-AD-Tools
 
 $InstallADDSForestParams = @{
@@ -28,7 +30,6 @@ $InstallADDSForestParams = @{
 }
 
 Install-ADDSForest @InstallADDSForestParams
-Set-AdAccountPassword administrator -NewPassword $DomainAdminPasswordSecure -Reset
 
 Add-DnsServerResourceRecordA -Name "master" -ZoneName $domainName -IPv4Address "$network.10"
 
