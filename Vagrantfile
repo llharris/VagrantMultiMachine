@@ -1,5 +1,6 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
+# Include slightly modified version of plugin by Exratione: https://github.com/exratione/vagrant-provision-reboot
 require './include/vagrant-provision-reboot-plugin'
 
 #################################################
@@ -148,15 +149,8 @@ if [[ "#{$env_type}" == "salt" ]]; then
         systemctl enable $i
         systemctl start $i
     done
+fi
 SCRIPT
-
-# TO-DO LIST
-#
-# Script Ansible server install for master and client ssh key/winrm configuration
-# Script saltstack server / minion install
-# Script chef server / client install
-# Tidy up this file
-# Write a README.md
 
 $linked_clone = true
 
