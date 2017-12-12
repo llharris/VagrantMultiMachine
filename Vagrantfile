@@ -135,7 +135,7 @@ Vagrant.configure("2") do |config|
                 vb.memory = $dc_ram
                 vb.cpus = $dc_cpu
                 vb.linked_clone = $linked_clone
-            dc.vm.provision :windows_reboot
+            #dc.vm.provision :windows_reboot
             end
         end
     end

@@ -29,8 +29,10 @@ $InstallADDSForestParams = @{
     Force = $true
 }
 
+Write-Host "Configuring AD Forest"
 Install-ADDSForest @InstallADDSForestParams
 
+Write-Host "Creating DNS Records"
 Add-DnsServerResourceRecordA -Name "master" -ZoneName $domainName -IPv4Address "$network.10"
 
 if ( $linode_count -gt 0 ) {
@@ -47,5 +49,7 @@ if ( $winode_count -gt 0 ) {
         }
     }   
     
+Write-Host "Rebooting in 30 seconds..."
+shutdown -t 30 -r -f
     
     
