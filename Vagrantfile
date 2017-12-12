@@ -96,7 +96,16 @@ systemctl restart dnsmasq
 SCRIPT
 
 $linux_config_dnsclient = <<SCRIPT
-
+if [[ "#{$enable_ad}" == "true" ]]; then
+    dns_server_ip="#{$network}.9"
+else
+    dns_server_ip="#{$network}.10"
+fi
+echo "PEERDNS=\"no\"" >> /etc/sysconfig/network-scripts/ifcfg-eth0
+echo "DNS1=\"$dns_server_ip\"" >> /etc/sysconfig/network-scripts/ifcfg-eth0
+echo "DOMAIN=\"#{$domain_name}\"" >> /etc/sysconfig/network-scripts/ifcfg-eth0
+systemctl restart NetworkManager
+systemctl restart network
 SCRIPT
 
 # TO-DO LIST
@@ -152,7 +161,7 @@ Vagrant.configure("2") do |config|
         master.vm.provision "shell", inline: <<-SHELL
         #{$linux_base_config}
         SHELL
-        if $enabled_ad == false # We only install and configure DNSmasq if AD isn't being used. Sacking off AD shite.
+        if $enable_ad == false # We only install and configure DNSmasq if AD isn't being used. Sacking off AD shite.
             master.vm.provision "shell", inline: <<-SHELL
             #{$linux_dnsmasq} 
             SHELL
@@ -169,8 +178,9 @@ Vagrant.configure("2") do |config|
                 vb.cpus = $linode_cpu
                 vb.linked_clone = $linked_clone
             end
-            #echo "Configuring Linux Node "#{i}"
-            # SHELL SCRIPTS GO HERE.
+            linode.vm.provision "shell", inline: <<-SHELL
+            #{$linux_config_dnsclient}
+            SHELL
         end
     end
 
@@ -191,6 +201,12 @@ Vagrant.configure("2") do |config|
                 end
                 winode.vm.provision :windows_reboot    
             end 
+            if $win_clients_join_domain == false
+                winode.vm.provision :shell do |windns|
+                    windns.path = "scripts/set_dns_server.ps1"
+                    windns.args = "#{$network} #{$language}"
+                end 
+            end
         end
     end
 end
