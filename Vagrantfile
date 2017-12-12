@@ -100,13 +100,13 @@ SCRIPT
 
 # TO-DO LIST
 #
-# Script network configuration for Windows (e.g. DNS server, domain search)
-# Sysprep windows clients, generlize to generate new SID using answerfile.
-# Work out how to reboot properly (windows)
-# Script basic package configuration for Linux / Windows
+# Script network configuration for Windows & Linux (e.g. DNS server, domain search)
+# Script basic OS configuration for Linux/Windows
 # Script Ansible server install for master and client ssh key/winrm configuration
 # Script saltstack server / minion install
 # Script chef server / client install
+# Tidy up this file
+# Write a README.md
 
 $linked_clone = true
 
