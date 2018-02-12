@@ -1,0 +1,38 @@
+---
+linked_mode: true
+
+#subnet: 192.168.34
+
+vms:
+  - name: test1
+    cpu: 1
+    ram: 2048
+    box: ubuntu/xenial64
+    #ip: 10
+    #provision:
+    #  scripts:
+    #  - name: scripts/pre-req.sh
+    #  - name: scripts/masters.sh
+  - name: test2
+    cpu: 2
+    ram: 2048
+    box: ubuntu/xenial64
+  #  provision:
+  #    scripts:
+  #    - name: scripts/somescript.sh
+  #- name: worker1
+  #  cpu: 1
+  #  ram: 1024
+  #  box: ubuntu/xenial64
+  #  ip: 11
+  #  provision:
+  #    scripts:
+  #    - name: scripts/pre-req.sh
+  #- name: worker2
+  #  cpu: 1
+  #  ram: 1024
+  #  box: ubuntu/xenial64
+  #  ip: 12
+  #  provision:
+  #    scripts:
+  #    - name: scripts/pre-req.sh
